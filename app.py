@@ -21,16 +21,9 @@ task_schema={
 def add_task():
     try:
         data = request.get_json()
-
-        if 'name' not in data or 'description' not in data:
-            return jsonify({'error': 'Name and description are required fields'}), 400
-        
-        if 'completed' in data and not isinstance(data['completed'], bool):
-            return jsonify({'error': 'Completed field must be a boolean'}), 400
-        
-        if not data.get('name') or not data.get('description'):
+        if data.get('name') == '' or data.get('description') == '':
             return jsonify({'error': 'Name and description cannot be blank'}), 400
-        
+            
         # Create the task dictionary
         task = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
         result = mongo.db.tasks.insert_one(task)
@@ -39,7 +32,7 @@ def add_task():
             '_id': str(result.inserted_id),
             'name': inserted_task['name'],
             'description': inserted_task['description'],
-            'completed': inserted_task['completed']
+            # 'completed': inserted_task['completed']
         }
         return jsonify(response_data), 201
         # return jsonify({'_id': str(result.inserted_id)})
@@ -66,46 +59,37 @@ def get_task(task_id):
     else:
         return jsonify({'message': 'Task not found'}), 404
 
-# Route to update the task
 # Route for update task
 @app.route('/tasks/<task_id>', methods=['PUT'])
 def update_task(task_id):
     try:
         data = request.get_json()
-        if 'name' in data and not data['name']:
+        if 'name' in data and not data['name'].strip():
             return jsonify({'error': 'Name cannot be blank'}), 400
 
-        if 'description' in data and not data['description']:
+        # Using direct equality check for 'description'
+        if 'description' in data and data['description'] == '':
             return jsonify({'error': 'Description cannot be blank'}), 400
+
+        # Adding a condition for 'completed'
+        if 'completed' in data and data['completed'] not in [True, False]:
+            return jsonify({'error': 'Completed must be a boolean value'}), 400
         
-        if 'completed' in data and not isinstance(data['completed'], bool):
-            return jsonify({'error': 'Completed field must be a boolean'}), 400
-
         update_data = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
-
         result = mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': update_data})
-
         # Check if the task was found and updated
         if result.modified_count > 0:
             return jsonify({'message': 'Task updated successfully'})
-        else:
+        else: 
             return jsonify({'message': 'Task not found'}), 404
-
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)}), #500
 
 # Route to delete a task
-
 @app.route('/tasks/<task_id>', methods=['DELETE'])
 def delete_task(task_id):
     mongo.db.tasks.delete_one({'_id': ObjectId(task_id)})
     return jsonify({'message': 'Task deleted successfully'})
-# Route to complete a task
-
-@app.route('/tasks/<task_id>/update_status', methods=['PUT'])
-def complete_task(task_id):
-    mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'completed': True}})
-    return jsonify({'message': 'Task marked as completed'})
 
 if __name__ == '__main__':
     app.run(debug=True)
