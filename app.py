@@ -17,16 +17,38 @@ task_schema={
 }
 
 # Routes for add tasks 
-@app.route('/add/tasks', methods=['POST'])
+@app.route('/tasks', methods=['POST'])
 def add_task():
-    data = request.get_json()
-    task = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
-    result = mongo.db.tasks.insert_one(task)
-    return jsonify({'_id': str(result.inserted_id)})
+    try:
+        data = request.get_json()
+
+        if 'name' not in data or 'description' not in data:
+            return jsonify({'error': 'Name and description are required fields'}), 400
+        
+        if 'completed' in data and not isinstance(data['completed'], bool):
+            return jsonify({'error': 'Completed field must be a boolean'}), 400
+        
+        if not data.get('name') or not data.get('description'):
+            return jsonify({'error': 'Name and description cannot be blank'}), 400
+        
+        # Create the task dictionary
+        task = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
+        result = mongo.db.tasks.insert_one(task)
+        inserted_task = mongo.db.tasks.find_one({'_id': result.inserted_id})
+        response_data = {
+            '_id': str(result.inserted_id),
+            'name': inserted_task['name'],
+            'description': inserted_task['description'],
+            'completed': inserted_task['completed']
+        }
+        return jsonify(response_data), 201
+        # return jsonify({'_id': str(result.inserted_id)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Route to view all tasks
 
-@app.route('/viewall/tasks', methods=['GET'])
+@app.route('/tasks', methods=['GET'])
 def get_all_tasks():
     tasks = list(mongo.db.tasks.find())
     # return jsonify({'tasks': tasks})
@@ -35,7 +57,7 @@ def get_all_tasks():
     return jsonify({'tasks':formatted_tasks})
 
 # Route to view a specific task
-@app.route('/view/tasks/<task_id>', methods=['GET'])
+@app.route('/tasks/<task_id>', methods=['GET'])
 def get_task(task_id):
     task = mongo.db.tasks.find_one({'_id': ObjectId(task_id)})
     if task:
@@ -45,24 +67,44 @@ def get_task(task_id):
         return jsonify({'message': 'Task not found'}), 404
 
 # Route to update the task
-@app.route('/update/tasks/<task_id>', methods=['PUT'])
+# Route for update task
+@app.route('/tasks/<task_id>', methods=['PUT'])
 def update_task(task_id):
-    data = request.get_json()
-    update_data = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
-    mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': update_data})
-    return jsonify({'message': 'Task updated successfully'})
+    try:
+        data = request.get_json()
+        if 'name' in data and not data['name']:
+            return jsonify({'error': 'Name cannot be blank'}), 400
+
+        if 'description' in data and not data['description']:
+            return jsonify({'error': 'Description cannot be blank'}), 400
+        
+        if 'completed' in data and not isinstance(data['completed'], bool):
+            return jsonify({'error': 'Completed field must be a boolean'}), 400
+
+        update_data = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
+
+        result = mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': update_data})
+
+        # Check if the task was found and updated
+        if result.modified_count > 0:
+            return jsonify({'message': 'Task updated successfully'})
+        else:
+            return jsonify({'message': 'Task not found'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Route to delete a task
 
-@app.route('/delete/tasks/<task_id>', methods=['DELETE'])
+@app.route('/tasks/<task_id>', methods=['DELETE'])
 def delete_task(task_id):
     mongo.db.tasks.delete_one({'_id': ObjectId(task_id)})
     return jsonify({'message': 'Task deleted successfully'})
 # Route to complete a task
 
-@app.route('/complete/tasks/<task_id>', methods=['PUT'])
+@app.route('/tasks/<task_id>/update_status', methods=['PUT'])
 def complete_task(task_id):
-    mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'completed': complete_task}})
+    mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'completed': True}})
     return jsonify({'message': 'Task marked as completed'})
 
 if __name__ == '__main__':
