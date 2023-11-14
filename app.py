@@ -1,20 +1,71 @@
 from flask import Flask, request, jsonify
 from flask_pymongo import PyMongo
 from bson import ObjectId
+import jwt
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+
+app.config['SECRET_KEY'] = 'ramrama'
 
 # MongoDB Configuration
 app.config['MONGO_URI'] = 'mongodb://localhost:27017/MyDatabase'
 mongo = PyMongo(app)
 
-# Task Schema
+# User Schema
+user_schema = {
+    'username': str,
+    'password': str
+}
 
-task_schema={
+# Task Schema
+task_schema = {
     'name': str,
     'description': str,
     'completed': bool
 }
+
+# Routes for signup
+
+@app.route('/signup', methods=['POST'])
+def signup():
+    try:
+        data = request.get_json()
+        if not data.get('username') or not data.get('password'):
+            return jsonify({'error': 'Username and password are required'}), 400
+
+        existing_user = mongo.db.users.find_one({'username': data['username']})
+        if existing_user:
+            return jsonify({'error': 'Username already exists'}), 400
+
+        hashed_password = generate_password_hash(data['password'])
+        new_user = {'username': data['username'], 'password': hashed_password}
+        mongo.db.users.insert_one(new_user)
+
+        return jsonify({'message': 'User created successfully'}), 201
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    
+#route for login
+
+@app.route('/signin', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        if not data.get('username') or not data.get('password'):
+            return jsonify({'error': 'Username and password are required'}), 400
+
+        user = mongo.db.users.find_one({'username': data['username']})
+        if user and check_password_hash(user['password'], data['password']):
+            access_token = jwt.encode({'username': str(data['username'])}, app.config['SECRET_KEY'])
+            return jsonify({'access_token': access_token}), 200
+        else:
+            return jsonify({'message': 'Invalid credentials'}), 401
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 
 # Routes for add tasks 
 @app.route('/tasks', methods=['POST'])
@@ -52,7 +103,7 @@ def get_all_tasks():
 def get_task(task_id):
     task = mongo.db.tasks.find_one({'_id': ObjectId(task_id)})
     if task:
-        formatted_task = {'_id': str(task['_id']), 'name': task['name'], 'description': task['description'], 'completed': task['completed']}
+        formatted_task = {'_id': str(task['_id']), 'name': task['name'], 'description': task['description']}
         return jsonify({'task': formatted_task})
     else:
         return jsonify({'message': 'Task not found'}), 404
@@ -62,17 +113,9 @@ def get_task(task_id):
 def update_task(task_id):
     try:
         data = request.get_json()
-        if 'name' in data or data['name'].strip() == '':
-            return jsonify({'error': 'Name cannot be blank'}), 400
-
-        # Using direct equality check for 'description'
-        if 'description' in data or data['description'].strip() == '':
-            return jsonify({'error': 'Description cannot be blank'}), 400
-
-        # Adding a condition for 'completed'
+        if data.get('name') == '' or data.get('description') == '':
+            return jsonify({'error': 'Name and description cannot be blank'}), 400
         if 'completed' in data and type(data['completed']) != bool:
-
-        #if 'completed' in data and data['completed'] not in [True, False]:
             return jsonify({'error': 'Completed must be a boolean value'}), 400
         
         update_data = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
@@ -83,13 +126,16 @@ def update_task(task_id):
         else: 
             return jsonify({'message': 'Task not found'}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}),
+        print("hi",e)
+        return jsonify({'error': str(e)})
 
 # Route to delete a task
 @app.route('/tasks/<task_id>', methods=['DELETE'])
 def delete_task(task_id):
     mongo.db.tasks.delete_one({'_id': ObjectId(task_id)})
     return jsonify({'message': 'Task deleted successfully'})
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
