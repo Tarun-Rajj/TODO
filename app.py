@@ -31,20 +31,18 @@ def add_task():
         response_data = {
             '_id': str(result.inserted_id),
             'name': inserted_task['name'],
-            'description': inserted_task['description'],
-            # 'completed': inserted_task['completed']
+            'description': inserted_task['description']
         }
         return jsonify(response_data), 201
         # return jsonify({'_id': str(result.inserted_id)})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)})
 
 # Route to view all tasks
 
 @app.route('/tasks', methods=['GET'])
 def get_all_tasks():
     tasks = list(mongo.db.tasks.find())
-    # return jsonify({'tasks': tasks})
     formatted_tasks = [{'_id': str(task['_id']), 'name': task.get('name',None)} for task in tasks]
 
     return jsonify({'tasks':formatted_tasks})
@@ -64,15 +62,17 @@ def get_task(task_id):
 def update_task(task_id):
     try:
         data = request.get_json()
-        if 'name' in data and not data['name'].strip():
+        if 'name' in data or data['name'].strip() == '':
             return jsonify({'error': 'Name cannot be blank'}), 400
 
         # Using direct equality check for 'description'
-        if 'description' in data and data['description'] == '':
+        if 'description' in data or data['description'].strip() == '':
             return jsonify({'error': 'Description cannot be blank'}), 400
 
         # Adding a condition for 'completed'
-        if 'completed' in data and data['completed'] not in [True, False]:
+        if 'completed' in data and type(data['completed']) != bool:
+
+        #if 'completed' in data and data['completed'] not in [True, False]:
             return jsonify({'error': 'Completed must be a boolean value'}), 400
         
         update_data = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
@@ -83,7 +83,7 @@ def update_task(task_id):
         else: 
             return jsonify({'message': 'Task not found'}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), #500
+        return jsonify({'error': str(e)}),
 
 # Route to delete a task
 @app.route('/tasks/<task_id>', methods=['DELETE'])
