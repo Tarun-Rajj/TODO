@@ -1,16 +1,30 @@
 from flask import Flask, request, jsonify
 from flask_pymongo import PyMongo
 from bson import ObjectId
-import jwt
+import os
 from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv 
+
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager
+from flask_jwt_extended import create_access_token
+load_dotenv()
+
+import jwt
+from datetime import datetime
 
 app = Flask(__name__)
+jwt = JWTManager(app)
 
-app.config['SECRET_KEY'] = 'ramrama'
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 
-# MongoDB Configuration
-app.config['MONGO_URI'] = 'mongodb://localhost:27017/MyDatabase'
+#print(os.getenv('MONGO_URI'))
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['MONGO_URI'] = os.getenv('MONGO_URI')
 mongo = PyMongo(app)
+
+#print(os.getenv("SECRET_KEY"))
+
 
 # User Schema
 user_schema = {
@@ -25,6 +39,17 @@ task_schema = {
     'completed': bool
 }
 
+@app.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    try:
+        # Access the identity of the current user with get_jwt_identity
+        current_user = get_jwt_identity()
+        print(current_user)
+        return jsonify(logged_in_as=current_user), 200
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    
 # Routes for signup
 
 @app.route('/signup', methods=['POST'])
@@ -58,7 +83,13 @@ def login():
 
         user = mongo.db.users.find_one({'username': data['username']})
         if user and check_password_hash(user['password'], data['password']):
-            access_token = jwt.encode({'username': str(data['username'])}, app.config['SECRET_KEY'])
+            # Generate JWT token
+            access_token = create_access_token(identity=data['username'])
+
+            # # Print the decoded identity
+            # decoded_identity = get_jwt_identity()
+            # print(f"Decoded Identity: {decoded_identity}")
+
             return jsonify({'access_token': access_token}), 200
         else:
             return jsonify({'message': 'Invalid credentials'}), 401
@@ -66,11 +97,13 @@ def login():
     except Exception as e:
         return jsonify({'error': str(e)})
 
-
 # Routes for add tasks 
 @app.route('/tasks', methods=['POST'])
+@jwt_required()  # Requires a valid JWT token
 def add_task():
     try:
+        current_user = get_jwt_identity()
+        print(f"Current User: {current_user}")
         data = request.get_json()
         if data.get('name') == '' or data.get('description') == '':
             return jsonify({'error': 'Name and description cannot be blank'}), 400
@@ -99,6 +132,7 @@ def get_all_tasks():
     return jsonify({'tasks':formatted_tasks})
 
 # Route to view a specific task
+
 @app.route('/tasks/<task_id>', methods=['GET'])
 def get_task(task_id):
     task = mongo.db.tasks.find_one({'_id': ObjectId(task_id)})
@@ -126,7 +160,6 @@ def update_task(task_id):
         else: 
             return jsonify({'message': 'Task not found'}), 404
     except Exception as e:
-        print("hi",e)
         return jsonify({'error': str(e)})
 
 # Route to delete a task
