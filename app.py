@@ -11,8 +11,7 @@ from flask_jwt_extended import create_access_token
 load_dotenv()
 
 import jwt
-from datetime import datetime
-
+import datetime
 app = Flask(__name__)
 jwt = JWTManager(app)
 
@@ -27,7 +26,7 @@ mongo = PyMongo(app)
 
 
 # User Schema
-user_schema = {
+user_schema = { 
     'username': str,
     'password': str
 }
@@ -53,6 +52,7 @@ def protected():
 # Routes for signup
 
 @app.route('/signup', methods=['POST'])
+
 def signup():
     try:
         data = request.get_json()
@@ -84,6 +84,9 @@ def login():
         user = mongo.db.users.find_one({'username': data['username']})
         if user and check_password_hash(user['password'], data['password']):
             # Generate JWT token
+            # expiration = datetime.datetime.utcnow() + datetime.timedelta(days=1)  # Token expires in 1 day
+            # access_token = jwt.encode({'username': data['username'], 'exp': expiration}, app.config['SECRET_KEY']== os.getenv('SECRET_KEY'))     #original one 
+            
             access_token = create_access_token(identity=data['username'])
 
             # # Print the decoded identity
@@ -97,6 +100,7 @@ def login():
     except Exception as e:
         return jsonify({'error': str(e)})
 
+
 # Routes for add tasks 
 @app.route('/tasks', methods=['POST'])
 @jwt_required()  # Requires a valid JWT token
@@ -107,9 +111,14 @@ def add_task():
         data = request.get_json()
         if data.get('name') == '' or data.get('description') == '':
             return jsonify({'error': 'Name and description cannot be blank'}), 400
+        task={
             
-        # Create the task dictionary
-        task = {k: task_schema[k](v) for k, v in data.items() if k in task_schema}
+            'name': data['name'],
+            'description': data['description'],
+            'completed': data.get('completed',False),
+            'user': current_user
+
+        }
         result = mongo.db.tasks.insert_one(task)
         inserted_task = mongo.db.tasks.find_one({'_id': result.inserted_id})
         response_data = {
@@ -118,35 +127,53 @@ def add_task():
             'description': inserted_task['description']
         }
         return jsonify(response_data), 201
-        # return jsonify({'_id': str(result.inserted_id)})
     except Exception as e:
         return jsonify({'error': str(e)})
 
 # Route to view all tasks
 
 @app.route('/tasks', methods=['GET'])
+@jwt_required()
 def get_all_tasks():
-    tasks = list(mongo.db.tasks.find())
-    formatted_tasks = [{'_id': str(task['_id']), 'name': task.get('name',None)} for task in tasks]
+    try:
 
-    return jsonify({'tasks':formatted_tasks})
+        current_user= get_jwt_identity()
+        tasks = list(mongo.db.tasks.find({'user': current_user}))
+        formatted_tasks = [{'_id': str(task['_id']), 'name': task.get('name',None)} for task in tasks]
+
+        return jsonify({'tasks':formatted_tasks})
+    except Exception as e:
+        return jsonify({'error':str(e)})
 
 # Route to view a specific task
 
 @app.route('/tasks/<task_id>', methods=['GET'])
+@jwt_required()
 def get_task(task_id):
-    task = mongo.db.tasks.find_one({'_id': ObjectId(task_id)})
-    if task:
-        formatted_task = {'_id': str(task['_id']), 'name': task['name'], 'description': task['description']}
-        return jsonify({'task': formatted_task})
-    else:
-        return jsonify({'message': 'Task not found'}), 404
+    try:
+        current_user = get_jwt_identity()
+        task = mongo.db.tasks.find_one({'_id': ObjectId(task_id),'user': current_user})
+        if task:
+            formatted_task = {'_id': str(task['_id']), 'name': task['name'], 'description': task['description']}
+            return jsonify({'task': formatted_task})
+        else:
+            return jsonify({'message': 'Task not found or unauthorized'}), 404
+    except Exception as e:
+        return jsonify({'error':str(e)})
 
 # Route for update task
 @app.route('/tasks/<task_id>', methods=['PUT'])
+@jwt_required()
 def update_task(task_id):
     try:
+        current_user=get_jwt_identity()
         data = request.get_json()
+        task = mongo.db.tasks.find_one({'_id':ObjectId(task_id),'user':current_user})
+        if not task:
+            return jsonify({'message':'Task not found or unauthorized'}),404
+        
+        # Check if the task was found and updated
+
         if data.get('name') == '' or data.get('description') == '':
             return jsonify({'error': 'Name and description cannot be blank'}), 400
         if 'completed' in data and type(data['completed']) != bool:
@@ -158,16 +185,24 @@ def update_task(task_id):
         if result.modified_count > 0:
             return jsonify({'message': 'Task updated successfully'})
         else: 
-            return jsonify({'message': 'Task not found'}), 404
+            return jsonify({'message': 'Task not found or unauthorized'}), 404
     except Exception as e:
         return jsonify({'error': str(e)})
 
 # Route to delete a task
 @app.route('/tasks/<task_id>', methods=['DELETE'])
+@jwt_required()
 def delete_task(task_id):
-    mongo.db.tasks.delete_one({'_id': ObjectId(task_id)})
-    return jsonify({'message': 'Task deleted successfully'})
-
+    try:
+        current_user=get_jwt_identity()
+        task = mongo.db.tasks.find_one({'_id':ObjectId(task_id),'user':current_user})
+        if task:
+            mongo.db.tasks.delete_one({'_id': ObjectId(task_id)})
+            return jsonify({'message': 'Task deleted successfully'})
+        else:
+            return jsonify({'message': 'Task not found or unauthorized'}),404
+    except Exception as e:
+            return jsonify({'error':str(e)})
 
 
 if __name__ == '__main__':
