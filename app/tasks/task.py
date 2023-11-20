@@ -2,6 +2,7 @@ from flask import Blueprint,jsonify,request,g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson import ObjectId
 
+
 task_bp = Blueprint('task_bp',__name__)
 
 task_schema = {
@@ -9,7 +10,6 @@ task_schema = {
     'description': str,
     'completed': bool
 }
-
 
 # Routes for add tasks 
 @task_bp.route('/', methods=['POST'])

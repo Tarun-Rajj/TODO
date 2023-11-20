@@ -3,11 +3,13 @@ from flask_pymongo import PyMongo
 import os
 from dotenv import load_dotenv 
 from flask_jwt_extended import JWTManager
-from auth import auth_bp 
-from task import task_bp
 load_dotenv()
+from .auth import auth
+from .tasks import task
 import datetime
+
 app = Flask(__name__)
+
 jwt = JWTManager(app)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = datetime.timedelta(days=1) 
@@ -21,8 +23,8 @@ def before_request():
     g.mongo = mongo                          
                             
 #Register Blueprints here
-app.register_blueprint(auth_bp, url_prefix='/auth')
-app.register_blueprint(task_bp,url_prefix='/task')
+app.register_blueprint(auth.auth_bp, url_prefix='/auth')
+app.register_blueprint(task.task_bp, url_prefix='/task')
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
+
