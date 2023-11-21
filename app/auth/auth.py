@@ -2,6 +2,7 @@
 # auth/auth.py
 from flask import Blueprint, request, jsonify,g
 from flask_jwt_extended import create_access_token
+
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
@@ -42,7 +43,8 @@ def signin():
             return jsonify({'error': 'Username and password are required'}), 400
         user = mongo.db.users.find_one({'username': data['username']})
         if user and check_password_hash(user['password'], data['password']):
-            access_token = create_access_token(identity=data['username'])
+            print(user)
+            access_token = create_access_token(identity=str(user['_id']))
             return jsonify({'access_token': access_token}), 200
         else:
             return jsonify({'message': 'Invalid credentials'}), 401

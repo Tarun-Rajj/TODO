@@ -26,7 +26,7 @@ def add_task():
             
             'name': data['name'],
             'description': data['description'],
-            'user': current_user
+            'userid': current_user
         }
         result = mongo.db.tasks.insert_one(task)
         inserted_task = mongo.db.tasks.find_one({'_id': result.inserted_id})
@@ -45,7 +45,7 @@ def add_task():
 def get_all_tasks():
         mongo=g.mongo
         current_user= get_jwt_identity()
-        tasks = list(mongo.db.tasks.find({'user': current_user}))
+        tasks = list(mongo.db.tasks.find({'userid': current_user}))
         formatted_tasks = [{'_id': str(task['_id']), 'name': task.get('name',None)} for task in tasks]
         return jsonify({'tasks':formatted_tasks})
    
@@ -55,7 +55,7 @@ def get_all_tasks():
 def get_task(task_id):
     mongo=g.mongo
     current_user = get_jwt_identity()
-    task = mongo.db.tasks.find_one({'_id': ObjectId(task_id), 'user': current_user})
+    task = mongo.db.tasks.find_one({'_id': ObjectId(task_id), 'userid': current_user})
     if task:
         formatted_task = {'_id': str(task['_id']), 'name': task['name'], 'description': task['description']}
         return jsonify({'task': formatted_task})
@@ -69,7 +69,7 @@ def update_task(task_id):
         mongo=g.mongo
         current_user=get_jwt_identity()
         data = request.get_json()
-        task = mongo.db.tasks.find_one({'_id':ObjectId(task_id),'user':current_user})
+        task = mongo.db.tasks.find_one({'_id':ObjectId(task_id),'userid':current_user})
         if not task:
             return jsonify({'message':'Task not found or unauthorized'}),404 
         if data.get('name') == '' or data.get('description') == '':
@@ -89,7 +89,7 @@ def update_task(task_id):
 def delete_task(task_id):
         mongo=g.mongo
         current_user=get_jwt_identity()
-        task = mongo.db.tasks.find_one({'_id':ObjectId(task_id),'user':current_user})
+        task = mongo.db.tasks.find_one({'_id':ObjectId(task_id),'useidr':current_user})
         if task:
             mongo.db.tasks.delete_one({'_id': ObjectId(task_id)})
             return jsonify({'message': 'Task deleted successfully'})
