@@ -1,13 +1,23 @@
-from flask import Blueprint, request,jsonify,g
-from werkzeug.security import generate_password_hash, check_password_hash
+
+# auth/auth.py
+from flask import Blueprint, request, jsonify,g
 from flask_jwt_extended import create_access_token
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 auth_bp = Blueprint('auth_bp',__name__)
 
+
+# Define the user schema
+user_schema = {
+    'username': str,
+    'password': str
+}
+   
 # Routes for signup
 @auth_bp.route('/signup', methods=['POST'])
-def signup():
-    mongo = g.mongo 
+def signup():  
+    mongo=g.mongo 
     try:
         data = request.get_json()
         if not data.get('username') or not data.get('password'):
@@ -21,11 +31,11 @@ def signup():
         return jsonify({'message': 'User created successfully'}), 201
     except Exception as e:
         return jsonify({'error': str(e)})
-
+    
 #route for login
 @auth_bp.route('/signin', methods=['POST'])
 def signin():
-    mongo = g.mongo
+    mongo=g.mongo
     try:
         data = request.get_json()
         if not data.get('username') or not data.get('password'):
@@ -38,4 +48,10 @@ def signin():
             return jsonify({'message': 'Invalid credentials'}), 401
     except Exception as e:
         return jsonify({'error': str(e)})
+
+
+   
+
+
+
     
